@@ -1,0 +1,14 @@
+# Entorn virtual
+venv/
+
+# Arxius temporals de Python
+__pycache__/
+*.pyc
+
+# Configuració de PyCharm
+.idea/
+
+# Arxius de Jupyter Notebook i sortides
+.ipynb_checkpoints/
+*.ipynb
+*.csv
