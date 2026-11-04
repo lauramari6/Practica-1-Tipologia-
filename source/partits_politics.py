@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import re
+import pandas as pd
+from bs4 import BeautifulSoup
+
+from config import DICT_TIPUS_ELECCIONS, COLUMNES_DATASET_PARTITS
+from user_agent import headers
+from source.espaiat_peticions import peticio_amb_espaiat
+
+
+def extreure_dades_partits(url: str, year: int) -> list:
+    """
+    Extreu les dades de partits governants d'un URL de la Wikipedia per a un any concret.
+    Retorna una llista de diccionaris (files).
+    """
+    wiki_partits_governants = peticio_amb_espaiat(url, headers)
+    soup = BeautifulSoup(wiki_partits_governants.content, features="html.parser")
+    taules = soup.find_all("table", class_="wikitable")
+
+    files_any = []
+
+    for taula in taules:
+
+        # Com que el format de la taula pateix canvis durant el període en què extraiem
+        # les dades, identifiquem les capçaleres perquè aquestes sí que es mantenen
+        # uniformes.
+        head_taula = [th.get_text(strip=True).lower() for th in taula.find_all("th")]
+
+        # Creem una variable per a diferenciar entre format antic i format actual de la
+        # taula de wikipèdia
+        if len(head_taula) > 4:
+            format_taula_antic = True
+        else:
+            format_taula_antic = False
+
+        # Evitem agafar dades de territoris perquè es confondrien amb les dades
+        # del país que l'ha colonitzat
+        if any("territory" in h for h in head_taula):
+            continue
+
+        # Busquem l'índex de les columnes segons el text de la capçalera de la taula
+        idx_pais = next((i for i, h in enumerate(head_taula) if "country" in h), None)
+        idx_sistema = next((i for i, h in enumerate(head_taula) if "system" in h), None)
+        idx_govern_0 = next((i for i, h in enumerate(head_taula) if "ruling" in h), None)
+        idx_eleccions_0 = next((i for i, h in enumerate(head_taula) if "election" in h), None)
+
+        for fila in taula.find_all("tr"):
+            idx_govern = idx_govern_0
+            idx_eleccions = idx_eleccions_0
+            dades_fila = fila.find_all("td")
+
+            if len(dades_fila) > 0:
+
+                # Creem un diccionari-fila temporal per assegurar que s'omplen totes les columnes
+                fila_dict = {clau: pd.NA for clau in COLUMNES_DATASET_PARTITS}
+
+                if idx_pais is not None:
+                    fila_dict["país"] = dades_fila[idx_pais].get_text(strip=True)
+
+                fila_dict["any"] = year
+
+                # Les files que només contenen 3 dades no corresponen a països democràtics
+                if len(dades_fila) == 3:
+                    # Per tant, omplim els valors amb Nones o similar.
+                    fila_dict["sistema de partits"] = "Non-partisan"
+                    fila_dict["partit governant"] = pd.NA
+                    files_any.append(fila_dict)
+                    continue
+
+                if format_taula_antic:
+                    if len(dades_fila) == 4:
+                        if idx_sistema is not None:
+                            fila_dict["sistema de partits"] = dades_fila[idx_sistema].get_text(strip=True)
+
+                    else:
+                        # La forma de saber a quin sistema pertany cada país és identificant quina columna conté text,
+                        # ja que cada columna pertany a un sistema de partits.
+                        for i in range(1, 5):
+                            text_sistema = dades_fila[i].get_text(strip=True)
+
+                            if text_sistema:
+                                ths = taula.find_all("th")
+                                if len(ths) >= 8:
+                                    fila_dict["sistema de partits"] = [
+                                        th.get_text(strip=True).lower() for th in taula.find_all("th")[4:8:][i - 1]
+                                    ]
+                                break
+
+                        idx_govern = idx_govern_0 + 3 if idx_govern_0 is not None else None
+                        idx_eleccions = idx_eleccions_0 + 3 if idx_eleccions_0 is not None else None
+
+                    if idx_govern_0 is not None:
+                        govern = dades_fila[idx_govern].get_text(strip=True)
+                    else:
+                        govern = ""
+
+                    if idx_eleccions is not None:
+                        # Extraiem les parelles (any, tipus d'elecció) de cada fila del format
+                        # antic
+                        anys_eleccions = re.findall(
+                            r"(\d{4}(?:[–-]\d{2,4})?)\s+([a-zA-Z\s]+?)\s+election",
+                            dades_fila[idx_eleccions].get_text(separator=" ", strip=True),
+                            flags=re.IGNORECASE
+                        )
+                    else:
+                        anys_eleccions = ""
+
+                else:    # El format de la taula és l'actual
+                    if idx_sistema is not None:
+                        fila_dict["sistema de partits"] = dades_fila[idx_sistema].get_text(strip=True)
+
+                    if idx_govern is not None:
+                        govern = BeautifulSoup(dades_fila[idx_govern].decode_contents().split("<hr")[0],
+                                               "html.parser").get_text(strip=True)
+                    else:
+                        govern = ""
+
+                    if idx_eleccions is not None:
+                        # Extraiem les parelles (any, tipus d'elecció) de cada fila del format actual
+                        anys_eleccions = re.findall(r"(\d{4}(?:[–-]\d{2,4})?)\s*\(([^)]+)\)",
+                                                    dades_fila[idx_eleccions].get_text(separator=" ", strip=True),
+                                                    flags=re.IGNORECASE)
+
+                en_coalicio = bool(re.search(r"[,(]", govern))
+                fila_dict["en coalició?"] = en_coalicio
+
+                if not en_coalicio:
+                    fila_dict["partit governant"] = govern
+                else:
+                    # En cas que el govern sigui una coalició de partits, només ens quedem
+                    # amb el que té més representació
+                    fila_dict["partit governant"] = re.split(r"[,(]", govern, maxsplit=1)[0].strip()
+
+                for yr, tipus in anys_eleccions:
+                    tipus_minuscules = tipus.lower()
+                    if tipus_minuscules in DICT_TIPUS_ELECCIONS:
+                        clau_dict = DICT_TIPUS_ELECCIONS[tipus_minuscules]
+                        fila_dict[clau_dict] = yr
+
+                files_any.append(fila_dict)
+
+    return files_any

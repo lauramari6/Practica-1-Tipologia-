@@ -11,4 +11,3 @@ __pycache__/
 # Arxius de Jupyter Notebook i sortides
 .ipynb_checkpoints/
 *.ipynb
-*.csv
