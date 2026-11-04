@@ -4,7 +4,9 @@ from pathlib import Path
 
 
 CARPETA_PROJECTE = Path(__file__).resolve().parent
-CARPETA_DATASET_PARTITS = CARPETA_PROJECTE / "dataset"
+CARPETA_DATASET = CARPETA_PROJECTE / "dataset"
+
+URL_ORIGINAL = "https://monitor.civicus.org"
 
 COLUMNES_DATASET_PARTITS = [
     "país", "any", "sistema de partits", "partit governant", "en coalició?",
