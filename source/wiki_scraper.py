@@ -5,18 +5,22 @@ import re
 import pandas as pd
 from bs4 import BeautifulSoup
 
-from source.config import headers, DICT_TIPUS_ELECCIONS, COLUMNES_DATASET_PARTITS
-from user_agent import headers
-from source.espaiat_peticions import peticio_amb_espaiat
+from source.config import headers, DICT_TIPUS_ELECCIONS, COLUMNES_DATASET_GOVERNS
+from source.utils import peticio_amb_espaiat
 
 
-def extreure_dades_partits(url: str, year: int) -> list:
+def extreure_dades_governs(url: str, year: int) -> list:
     """
     Extreu les dades de partits governants d'un URL de la Wikipedia per a un any concret.
     Retorna una llista de diccionaris (files).
     """
-    wiki_partits_governants = peticio_amb_espaiat(url, headers)
-    soup = BeautifulSoup(wiki_partits_governants.content, features="html.parser")
+
+
+    resposta = peticio_amb_espaiat(url, headers)
+    if not resposta:
+        return []
+
+    soup = BeautifulSoup(resposta.content, features="html.parser")
     taules = soup.find_all("table", class_="wikitable")
 
     files_any = []
@@ -54,7 +58,7 @@ def extreure_dades_partits(url: str, year: int) -> list:
             if len(dades_fila) > 0:
 
                 # Creem un diccionari-fila temporal per assegurar que s'omplen totes les columnes
-                fila_dict = {clau: pd.NA for clau in COLUMNES_DATASET_PARTITS}
+                fila_dict = {clau: pd.NA for clau in COLUMNES_DATASET_GOVERNS}
 
                 if idx_pais is not None:
                     fila_dict["país"] = dades_fila[idx_pais].get_text(strip=True)

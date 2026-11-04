@@ -7,23 +7,21 @@ MÒDUL PRINCIPAL: Pipeline d'extracció de dades de XXX
 Aquest script actua com a punt d'entrada principal del projecte.
 """
 
-from pathlib import Path
-import sys
-import csv
 from bs4 import BeautifulSoup
 
-from source.config import URL_ORIGINAL, DICT_URL_HISTORIAL_WIKI, CARPETA_DATASET, COLUMNES_DATASET_PARTITS
-from source.partits_politics import extreure_dades_partits
-from user_agent import headers
+from source.config import (
+    CARPETA_DATASET,
+    DICT_URL_HISTORIAL_WIKI,
+    COLUMNES_DATASET_GOVERNS,
+    URL_ORIGINAL,
+    headers
+)
+from source.utils import peticio_amb_espaiat, obtencio_html, desar_a_csv
+from source.wiki_scraper import extreure_dades_governs
+from user_agent import headers  # Eliminem aquest import??
+
+# Eliminem obtencio_html de l'import d'explore?
 from explore import obtencio_html, obtenir_apartats, scrap_data
-
-
-# ------------------ROSER-------------------------------
-# Afegim la carpeta del projecte dins la ruta de cerca de mòduls (sys.path)
-CARPETA_PROJECTE = Path(__file__).resolve().parent
-if str(CARPETA_PROJECTE) not in sys.path:
-    sys.path.insert(0, str(CARPETA_PROJECTE))
-# ------------------ROSER-------------------------------
 
 
 # -----------------LAURA-------------------------------
@@ -62,21 +60,15 @@ csv_data(data)
 
 
 # ------------------ROSER-------------------------------
-# Per extreure les dades de partits_politics
-dades_partits_politics = []
+print("Extraient dades de governs...")
+dades_governs = []
 
 for year, url_hist in DICT_URL_HISTORIAL_WIKI.items():
-    partits_any = extreure_dades_partits(url_hist, year)
-    dades_partits_politics.extend(partits_any)
+    print(f"- Recollint dades de l'any {year}")
+    governs_any = extreure_dades_governs(url_hist, year)
+    dades_governs.extend(governs_any)
 
 csv_partits_politics = CARPETA_DATASET / "partits_politics.csv"
-
-with open(csv_partits_politics, "w", newline="", encoding="utf-8-sig") as csvfile:
-    partits_writer = csv.DictWriter(csvfile,
-                                    fieldnames = COLUMNES_DATASET_PARTITS,
-                                    delimiter=";",
-                                    quotechar="'",
-                                    quoting=csv.QUOTE_MINIMAL)
-    partits_writer.writeheader()
-    partits_writer.writerows(dades_partits_politics)
+desar_a_csv(dades_governs, csv_partits_politics, COLUMNES_DATASET_GOVERNS)
+print("Dades de governs extretes")
 # ------------------ROSER-------------------------------

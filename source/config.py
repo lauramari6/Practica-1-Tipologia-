@@ -19,7 +19,7 @@ headers = {
 
 URL_ORIGINAL = "https://monitor.civicus.org"
 
-COLUMNES_DATASET_PARTITS = [
+COLUMNES_DATASET_GOVERNS = [
     "país", "any", "sistema de partits", "partit governant", "en coalició?",
     "últimes eleccions parlamentàries", "últimes eleccions presidencials",
     "últimes eleccions generals", "últimes eleccions del Consell",
