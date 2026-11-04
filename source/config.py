@@ -3,8 +3,19 @@
 from pathlib import Path
 
 
-CARPETA_PROJECTE = Path(__file__).resolve().parent
+CARPETA_SOURCE = Path(__file__).resolve().parent
+CARPETA_PROJECTE = CARPETA_SOURCE.parent
 CARPETA_DATASET = CARPETA_PROJECTE / "dataset"
+
+# Definim les capçaleres HTTP que enviarem al servidor, identificant-nos i incloent la nostra informació de contacte
+# per complir amb les directrius de web scraping ètic.
+headers = {
+    "User-Agent": "UOC-WebScraping-Practica_1 (Laura Marí <lmaricab@uoc.edu>, Roser Xixons <rxixons@uoc.edu>; "
+                  "assignatura_tipologia_i_cicle_de_vida_de_les_dades",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br"
+}
 
 URL_ORIGINAL = "https://monitor.civicus.org"
 

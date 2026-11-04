@@ -15,7 +15,7 @@ import time
 import csv
 import os
 
-from config import CARPETA_DATASET
+from source.config import CARPETA_DATASET
 
 
 def obtencio_html(url, headers,  tries=3, timeout=20):

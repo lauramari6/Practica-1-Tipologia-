@@ -5,7 +5,7 @@ import re
 import pandas as pd
 from bs4 import BeautifulSoup
 
-from config import DICT_TIPUS_ELECCIONS, COLUMNES_DATASET_PARTITS
+from source.config import headers, DICT_TIPUS_ELECCIONS, COLUMNES_DATASET_PARTITS
 from user_agent import headers
 from source.espaiat_peticions import peticio_amb_espaiat
 

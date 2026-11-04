@@ -12,10 +12,18 @@ import sys
 import csv
 from bs4 import BeautifulSoup
 
-from config import URL_ORIGINAL, DICT_URL_HISTORIAL_WIKI, CARPETA_DATASET, COLUMNES_DATASET_PARTITS
+from source.config import URL_ORIGINAL, DICT_URL_HISTORIAL_WIKI, CARPETA_DATASET, COLUMNES_DATASET_PARTITS
 from source.partits_politics import extreure_dades_partits
 from user_agent import headers
-from explore import obtencio_html, data_article, scrap_for_region, obtenir_apartats, list_regions, csv_data, scrap_data
+from explore import obtencio_html, obtenir_apartats, scrap_data
+
+
+# ------------------ROSER-------------------------------
+# Afegim la carpeta del projecte dins la ruta de cerca de mòduls (sys.path)
+CARPETA_PROJECTE = Path(__file__).resolve().parent
+if str(CARPETA_PROJECTE) not in sys.path:
+    sys.path.insert(0, str(CARPETA_PROJECTE))
+# ------------------ROSER-------------------------------
 
 
 # -----------------LAURA-------------------------------
@@ -50,28 +58,19 @@ csv_data(data)
 
 """
 # ------------------LAURA-------------------------------
-# -------------ESBORRAR-------------------------------
-print("\n[2/2] FASE PARTITS POLÍTICS (Roser)")
-# ----------------------------------------------------
-# ------------------ROSER-------------------------------
-# Afegim la carpeta del projecte dins la ruta de cerca de mòduls (sys.path)
-CARPETA_PROJECTE = Path(__file__).resolve().parent.parent
-if str(CARPETA_PROJECTE) not in sys.path:
-    sys.path.insert(0, str(CARPETA_PROJECTE))
 
+
+
+# ------------------ROSER-------------------------------
 # Per extreure les dades de partits_politics
 dades_partits_politics = []
-# -------------ESBORRAR-------------------------------
-print(f"  -> S'extreuran dades de {len(DICT_URL_HISTORIAL_WIKI)} anys diferents...")
-# ----------------------------------------------------
+
 for year, url_hist in DICT_URL_HISTORIAL_WIKI.items():
     partits_any = extreure_dades_partits(url_hist, year)
     dades_partits_politics.extend(partits_any)
 
 csv_partits_politics = CARPETA_DATASET / "partits_politics.csv"
-# -------------ESBORRAR-------------------------------
-print(f"  -> Escrivint el fitxer CSV a: {csv_partits_politics}")
-# ----------------------------------------------------
+
 with open(csv_partits_politics, "w", newline="", encoding="utf-8-sig") as csvfile:
     partits_writer = csv.DictWriter(csvfile,
                                     fieldnames = COLUMNES_DATASET_PARTITS,
