@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+
 """
 MÒDUL PRINCIPAL: Pipeline d'extracció de dades de XXX
 -----------------------------------------------------------------------------
@@ -9,66 +11,82 @@ Aquest script actua com a punt d'entrada principal del projecte.
 
 from bs4 import BeautifulSoup
 
-from source.config import (
+from config import (
     CARPETA_DATASET,
-    DICT_URL_HISTORIAL_WIKI,
     COLUMNES_DATASET_GOVERNS,
     URL_ORIGINAL,
     headers
 )
-from source.utils import peticio_amb_espaiat, obtencio_html, desar_a_csv
-from source.wiki_scraper import extreure_dades_governs
-from user_agent import headers  # Eliminem aquest import??
-
-# Eliminem obtencio_html de l'import d'explore?
-from explore import obtencio_html, obtenir_apartats, scrap_data
+from utils import obtencio_html, desar_a_csv, obtenir_apartats, list_regions, verificar_user_agent
+from wiki_scraper import WikiGovernsSpider
+from civicus_scraper import scrap_data, scrap_for_region
+from scrapy.crawler import CrawlerProcess
 
 
-# -----------------LAURA-------------------------------
-r = obtencio_html(URL_ORIGINAL, headers=headers)
-soup = BeautifulSoup(r, "html.parser")
+def main():
+    # ==============================================================
+    # 0. Verificació de l'User-Agent
+    # ==============================================================
+    verificar_user_agent(headers)
 
-# SCRAPING PARA LA PESTAÑA EXPLORE
-data_url = obtenir_apartats(soup)[1]
+    #===============================================================
+    # 1. Scrapping de les dades de la taula en la pestanya Data
+    #===============================================================
+    print("Extraient dades de la taula...")
 
-scrap_data(data_url, headers)
+    r = obtencio_html(URL_ORIGINAL, headers=headers)
+    soup = BeautifulSoup(r, "html.parser")
+    # Pestanya Data
+    explore_url, data_url = obtenir_apartats(soup)
+    # Scrapping
+    scrap_data(data_url, headers)
+    print("Dades de la taula extretes")
+
+    #===============================================================
+    # 2. Scrapping de les dades dels articles en la pestanya Explore
+    #===============================================================
+    print("Extraient dades dels articles...")
+
+    r_explore = obtencio_html(explore_url, headers=headers)
+    soup_explore = BeautifulSoup(r_explore, "html.parser")
+    # Obtenció de l'url i de l'etiqueta de cada regió
+    url_regions, regions = list_regions(explore_url, soup_explore)
+    # Scrapping de cada article
+    scrap_for_region(url_regions, regions)
+    print("Dades dels articles extretes")
+
+    #===============================================================
+    # 3. Scrapping extern de les dades partits polítics per anys
+    #===============================================================
+    print("Extraient dades de governs...")
+
+    dades_governs = []
+
+    proces = CrawlerProcess(settings={
+        # Utilitzem la capçalera identificadora per un web scraping ètic
+        "DEFAULT_REQUEST_HEADERS": headers,
+
+        # Mimetitzem el comportament de la funció "peticio_amb_espaiat"
+        "DOWNLOAD_TIMEOUT": 10,
+        "RETRY_ENABLED": True,
+        "RETRY_TIMES": 3,
+        "RETRY_HTTP_CODES": [500, 502, 503, 504, 522, 524, 408, 429],
+        "AUTOTHROTTLE_ENABLED": True,
+        "AUTOTHROTTLE_START_DELAY": 1.0,
+        "AUTOTHROTTLE_MAX_DELAY": 10.0,
+        "AUTOTHROTTLE_TARGET_CONCURRENCY": 1.0,
+
+        # Perquè només es mostri informació rellevant sobre l'execució de l'scraping
+        "LOG_LEVEL": "INFO"
+    })
+
+    proces.crawl(WikiGovernsSpider, dades_sortida=dades_governs)
+    proces.start()
+
+    csv_partits_politics = CARPETA_DATASET / "dades_governs.csv"
+    desar_a_csv(dades_governs, csv_partits_politics, COLUMNES_DATASET_GOVERNS)
+    print("Dades de governs extretes")
 
 
-
-"""
-r = obtencio_html(url_original, headers=headers)
-soup = BeautifulSoup(r, "html.parser")
-
-# SCRAPING PARA LA PESTAÑA EXPLORE
-explore_url = obtenir_apartats(soup)[0]
-r_explore = obtencio_html(explore_url, headers)
-soup_explore = BeautifulSoup(r_explore, "html.parser")
-
-# Obtención de todas las url de cada region
-url_regions = list_regions(explore_url, soup_explore)[0]
-# obtención de cada región
-regions = list_regions(explore_url, soup_explore)[1]
-
-# Scrapping de cada articulo
-data = scrap_for_region(url_regions, regions)
-
-csv_data(data)
-
-"""
-# ------------------LAURA-------------------------------
-
-
-
-# ------------------ROSER-------------------------------
-print("Extraient dades de governs...")
-dades_governs = []
-
-for year, url_hist in DICT_URL_HISTORIAL_WIKI.items():
-    print(f"- Recollint dades de l'any {year}")
-    governs_any = extreure_dades_governs(url_hist, year)
-    dades_governs.extend(governs_any)
-
-csv_partits_politics = CARPETA_DATASET / "partits_politics.csv"
-desar_a_csv(dades_governs, csv_partits_politics, COLUMNES_DATASET_GOVERNS)
-print("Dades de governs extretes")
-# ------------------ROSER-------------------------------
+if __name__== "__main__":
+    main()

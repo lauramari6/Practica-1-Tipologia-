@@ -1,26 +1,80 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+"""
+Funcions per al web scraping a la pàgina "List of ruling political parties by country"
+de la Wikipedia
+"""
+
+
 import re
+from urllib.parse import urljoin
 import pandas as pd
 from bs4 import BeautifulSoup
+import scrapy
 
-from source.config import headers, DICT_TIPUS_ELECCIONS, COLUMNES_DATASET_GOVERNS
-from source.utils import peticio_amb_espaiat
+from config import DICT_TIPUS_ELECCIONS, COLUMNES_DATASET_GOVERNS
 
 
-def extreure_dades_governs(url: str, year: int) -> list:
+class WikiGovernsSpider(scrapy.Spider):
+    name = "wiki_governs_spider"
+
+    start_urls = [
+        "https://en.wikipedia.org/w/index.php?title=List_of_ruling_political_parties_by_country&action=history&limit=5000"
+    ]
+
+    def __init__(self, dades_sortida=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.anys = list(range(2017, 2026))
+        self.anys_trobats = set()
+        self.dades_registrades = dades_sortida if dades_sortida is not None else []
+
+    def parse(self, response):
+        """
+        Analitza l'historial de la pàgina per extreure dinàmicament les URLs de cadascun dels anys anteriors.
+        """
+        # Primer verifiquem l'user-agent
+        ua_enviat = response.request.headers.get("User-Agent").decode("utf-8")
+        self.logger.info(f"User-Agent confirmat pel servidor: {ua_enviat}")
+
+        # I ara ja busquem les revisions a l'hitorial de la Wikipedia
+        revisions= response.css("a[href*='oldid=']")
+
+        for rev in revisions:
+            url_relativa = rev.css("::attr(href)").get()
+            text_data = "".join(rev.css("::text").getall()).strip()
+
+            coincidencia = re.search(r"\b(20\d{2})\b", text_data)
+            if coincidencia:
+                any_ = int(coincidencia.group(1))
+
+                if any_ in self.anys and any_ not in self.anys_trobats:
+                    self.anys_trobats.add(any_)
+                    url_completa = urljoin(response.url, url_relativa)
+
+                    yield scrapy.Request(url=url_completa, callback=self.parse_revisio,cb_kwargs={"any_":any_})
+
+            if len(self.anys_trobats) == len(self.anys):
+                break
+
+
+    def parse_revisio(self, response, any_):
+        """
+        Processa l'HTML descarregat cridant la funció de parseig.
+        """
+
+        dades_any = extreure_dades_governs(response.body, any_)
+        self.dades_registrades.extend(dades_any)
+
+
+def extreure_dades_governs(contingut_html: str | bytes, year: int) -> list:
     """
-    Extreu les dades de partits governants d'un URL de la Wikipedia per a un any concret.
-    Retorna una llista de diccionaris (files).
+    Extreu, per a un any concret, les dades de partits governants a partir del contingut HTML de la Wikipedia.
+    Retorna una llista de diccionaris (files de la/les taula/es de la pàgina de Wikipedia).
     """
 
-
-    resposta = peticio_amb_espaiat(url, headers)
-    if not resposta:
-        return []
-
-    soup = BeautifulSoup(resposta.content, features="html.parser")
+    soup = BeautifulSoup(contingut_html, features="html.parser")
     taules = soup.find_all("table", class_="wikitable")
 
     files_any = []
@@ -109,7 +163,7 @@ def extreure_dades_governs(url: str, year: int) -> list:
                             flags=re.IGNORECASE
                         )
                     else:
-                        anys_eleccions = ""
+                        anys_eleccions = []
 
                 else:    # El format de la taula és l'actual
                     if idx_sistema is not None:
